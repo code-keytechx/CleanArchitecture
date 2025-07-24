@@ -3,7 +3,7 @@
 > Comprehensive code map analysis for the entire repository
 
 **Repository Path:** `/Users/quang.vuong/Documents/Development/CleanArchitecture/src/Application`
-**Generated on:** 2025-07-22T19:45:00.648Z
+**Generated on:** 2025-07-24T09:53:40.781Z
 
 ## 📋 Table of Contents
 
@@ -17,7 +17,7 @@
 ## 🏗️ Repository Overview
 
 **Primary Language:** C#
-**Total Files:** 44
+**Total Files:** 112
 **Total Dependencies:** 0
 **Test Files:** 0
 
@@ -25,7 +25,8 @@
 
 | Language | File Count | Percentage |
 |----------|------------|------------|
-| C# | 40 | 100.0% |
+| C# | 43 | 91.5% |
+| JSON | 4 | 8.5% |
 
 ## 📊 Code Map Results
 
@@ -111,6 +112,7 @@ Application/
 │           ├── GetWeatherForecastsQuery.cs
 │           └── WeatherForecast.cs
 ├── code-maps/
+│   ├── README.md
 │   ├── assets/
 │   ├── csharp/
 │   │   ├── Common/
@@ -132,6 +134,8 @@ Application/
 │   │   └── WeatherForecasts/
 │   │       └── Queries/
 │   ├── general/
+│   │   ├── project-analysis.md
+│   │   └── repository-overview.md
 │   ├── java/
 │   ├── javascript/
 │   ├── python/
@@ -147,7 +151,7 @@ Application/
 ## 📋 Summary
 
 This repository contains:
-- **1** different programming languages
+- **2** different programming languages
 - **40** generated code maps
 - **0** total dependencies
 - **0** frameworks/libraries

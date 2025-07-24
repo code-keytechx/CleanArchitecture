@@ -3,7 +3,7 @@
 > Complete code analysis and documentation for this repository
 
 **Repository:** Application
-**Generated:** 2025-07-22T19:45:00.650Z
+**Generated:** 2025-07-24T09:53:40.783Z
 
 ## 📚 Table of Contents
 
@@ -70,8 +70,8 @@ code-maps/
 ## 📊 Quick Statistics
 
 - **Primary Language:** C#
-- **Total Files:** 44
-- **Languages Detected:** 1
+- **Total Files:** 112
+- **Languages Detected:** 2
 - **Dependencies:** 0
 - **Test Files:** 0
 - **Generated Maps:** 40

@@ -80,5 +80,10 @@
     <PackageVersion Include="SpecFlow.Plus.LivingDocPlugin" Version="3.9.57" />
     <PackageVersion Include="SpecFlow.NUnit" Version="3.9.74" />
     <!--#endif-->
+  
+    <PackageVersion Include="AutoFixture" Version="4.18.0" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="$(MicrosoftExtensionsVersion)" />
+  
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Diagnostics.EntityFrameworkCore" Version="$(AspnetVersion)" />
   </ItemGroup>
 </Project>
