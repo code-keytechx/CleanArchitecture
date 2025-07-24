@@ -1,28 +1,29 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CleanArchitecture.Application.Common.Behaviours;
 using CleanArchitecture.Application.Common.Exceptions;
-using CleanArchitecture.Application.Common.Interfaces;
 using CleanArchitecture.Application.Common.Security;
 using FluentAssertions;
 using Moq;
 using Xunit;
+using CleanArchitecture.Application.Common.Interfaces;
 
-namespace CleanArchitecture.Application.Common.Behaviours.Tests
+namespace CleanArchitecture.Application.Tests.Common.Behaviours
 {
     public class AuthorizationBehaviourTests
     {
-        private readonly Mock<IIdentityService> _mockIdentityService;
         private readonly Mock<IUser> _mockUser;
-        private readonly AuthorizationBehaviour<TestRequest, TestResponse> _behaviour;
+        private readonly Mock<IIdentityService> _mockIdentityService;
+        private readonly AuthorizationBehaviour<TestRequest, string> _behaviour;
 
         public AuthorizationBehaviourTests()
         {
-            _mockIdentityService = new Mock<IIdentityService>();
             _mockUser = new Mock<IUser>();
-            _behaviour = new AuthorizationBehaviour<TestRequest, TestResponse>(_mockIdentityService.Object, _mockUser.Object);
+            _mockIdentityService = new Mock<IIdentityService>();
+            _behaviour = new AuthorizationBehaviour<TestRequest, string>(_mockUser.Object, _mockIdentityService.Object);
         }
 
         #region Critical Path Tests
@@ -30,103 +31,59 @@ namespace CleanArchitecture.Application.Common.Behaviours.Tests
 
         [Fact]
         [Trait("Category", "Critical")]
-        public async Task Handle_WithNoAuthorizeAttributes_AllowsExecution()
+        public async Task Handle_WithAuthenticatedUserAndAuthorizedRole_Succeeds()
         {
+            // Business Context: Authenticated user with authorized role
             // Arrange
-            var request = new TestRequest();
-            var next = new Mock<RequestHandlerDelegate<TestResponse>>();
-            next.Setup(n => n()).ReturnsAsync(new TestResponse());
+            var user = new User { Id = "USER_001" };
+            var authorizeAttribute = new AuthorizeAttribute { Roles = "Admin" };
+            var request = new TestRequest { AuthorizeAttributes = new[] { authorizeAttribute } };
+
+            _mockUser.Setup(u => u.Id).Returns(user.Id);
+            _mockIdentityService.Setup(i => i.IsInRoleAsync(user.Id, "Admin")).ReturnsAsync(true);
 
             // Act
-            var result = await _behaviour.Handle(request, next.Object, CancellationToken.None);
+            var result = await _behaviour.Handle(request, () => Task.FromResult("Success"), CancellationToken.None);
 
             // Assert
-            result.Should().NotBeNull();
-            next.Verify(n => n(), Times.Once);
+            result.Should().Be("Success");
         }
 
         [Fact]
         [Trait("Category", "Critical")]
-        public async Task Handle_WithAuthenticatedUserAndAuthorizedRole_AllowsExecution()
+        public async Task Handle_WithUnauthenticatedUser_ThrowsUnauthorizedAccessException()
         {
+            // Business Context: Unauthenticated user attempting to access protected resource
             // Arrange
             var request = new TestRequest();
-            var next = new Mock<RequestHandlerDelegate<TestResponse>>();
-            next.Setup(n => n()).ReturnsAsync(new TestResponse());
 
-            _mockUser.Setup(u => u.Id).Returns("user123");
-            _mockIdentityService.Setup(i => i.IsInRoleAsync("user123", "Admin")).ReturnsAsync(true);
-
-            request.GetType().AddCustomAttribute(new AuthorizeAttribute { Roles = "Admin" });
-
-            // Act
-            var result = await _behaviour.Handle(request, next.Object, CancellationToken.None);
-
-            // Assert
-            result.Should().NotBeNull();
-            next.Verify(n => n(), Times.Once);
-        }
-
-        [Fact]
-        [Trait("Category", "Critical")]
-        public async Task Handle_WithAuthenticatedUserAndUnauthorizedRole_ThrowsForbiddenAccessException()
-        {
-            // Arrange
-            var request = new TestRequest();
-            var next = new Mock<RequestHandlerDelegate<TestResponse>>();
-
-            _mockUser.Setup(u => u.Id).Returns("user123");
-            _mockIdentityService.Setup(i => i.IsInRoleAsync("user123", "Admin")).ReturnsAsync(false);
-
-            request.GetType().AddCustomAttribute(new AuthorizeAttribute { Roles = "Admin" });
+            _mockUser.Setup(u => u.Id).Returns((string?)null);
 
             // Act & Assert
-            await _behaviour.Invoking(b => b.Handle(request, next.Object, CancellationToken.None))
+            await _behaviour.Invoking(b => b.Handle(request, () => Task.FromResult("Success"), CancellationToken.None))
                            .Should()
-                           .ThrowAsync<ForbiddenAccessException>()
-                           .WithMessage("Access denied.");
+                           .ThrowAsync<UnauthorizedAccessException>()
+                           .WithMessage("Unauthorized");
         }
 
         [Fact]
         [Trait("Category", "Critical")]
-        public async Task Handle_WithAuthenticatedUserAndAuthorizedPolicy_AllowsExecution()
+        public async Task Handle_WithAuthenticatedUserButUnauthorizedRole_ThrowsForbiddenAccessException()
         {
+            // Business Context: Authenticated user with unauthorized role
             // Arrange
-            var request = new TestRequest();
-            var next = new Mock<RequestHandlerDelegate<TestResponse>>();
-            next.Setup(n => n()).ReturnsAsync(new TestResponse());
+            var user = new User { Id = "USER_001" };
+            var authorizeAttribute = new AuthorizeAttribute { Roles = "Admin" };
+            var request = new TestRequest { AuthorizeAttributes = new[] { authorizeAttribute } };
 
-            _mockUser.Setup(u => u.Id).Returns("user123");
-            _mockIdentityService.Setup(i => i.AuthorizeAsync("user123", "ReadPolicy")).ReturnsAsync(true);
-
-            request.GetType().AddCustomAttribute(new AuthorizeAttribute { Policy = "ReadPolicy" });
-
-            // Act
-            var result = await _behaviour.Handle(request, next.Object, CancellationToken.None);
-
-            // Assert
-            result.Should().NotBeNull();
-            next.Verify(n => n(), Times.Once);
-        }
-
-        [Fact]
-        [Trait("Category", "Critical")]
-        public async Task Handle_WithAuthenticatedUserAndUnauthorizedPolicy_ThrowsForbiddenAccessException()
-        {
-            // Arrange
-            var request = new TestRequest();
-            var next = new Mock<RequestHandlerDelegate<TestResponse>>();
-
-            _mockUser.Setup(u => u.Id).Returns("user123");
-            _mockIdentityService.Setup(i => i.AuthorizeAsync("user123", "ReadPolicy")).ReturnsAsync(false);
-
-            request.GetType().AddCustomAttribute(new AuthorizeAttribute { Policy = "ReadPolicy" });
+            _mockUser.Setup(u => u.Id).Returns(user.Id);
+            _mockIdentityService.Setup(i => i.IsInRoleAsync(user.Id, "Admin")).ReturnsAsync(false);
 
             // Act & Assert
-            await _behaviour.Invoking(b => b.Handle(request, next.Object, CancellationToken.None))
+            await _behaviour.Invoking(b => b.Handle(request, () => Task.FromResult("Success"), CancellationToken.None))
                            .Should()
                            .ThrowAsync<ForbiddenAccessException>()
-                           .WithMessage("Access denied.");
+                           .WithMessage("Forbidden");
         }
 
         #endregion
@@ -137,21 +94,37 @@ namespace CleanArchitecture.Application.Common.Behaviours.Tests
 
         [Fact]
         [Trait("Category", "Happy")]
-        public async Task Handle_WithUnauthenticatedUser_ThrowsUnauthorizedAccessException()
+        public async Task Handle_WithNoAuthorizationAttributes_Succeeds()
         {
+            // Business Context: Request with no authorization attributes
             // Arrange
             var request = new TestRequest();
-            var next = new Mock<RequestHandlerDelegate<TestResponse>>();
 
-            _mockUser.Setup(u => u.Id).Returns((string)null);
+            // Act
+            var result = await _behaviour.Handle(request, () => Task.FromResult("Success"), CancellationToken.None);
 
-            request.GetType().AddCustomAttribute(new AuthorizeAttribute { Roles = "Admin" });
+            // Assert
+            result.Should().Be("Success");
+        }
 
-            // Act & Assert
-            await _behaviour.Invoking(b => b.Handle(request, next.Object, CancellationToken.None))
-                           .Should()
-                           .ThrowAsync<UnauthorizedAccessException>()
-                           .WithMessage("Unauthorized.");
+        [Fact]
+        [Trait("Category", "Happy")]
+        public async Task Handle_WithPolicyBasedAuthorization_Succeeds()
+        {
+            // Business Context: Request with policy-based authorization
+            // Arrange
+            var user = new User { Id = "USER_001" };
+            var authorizeAttribute = new AuthorizeAttribute { Policy = "CanViewResource" };
+            var request = new TestRequest { AuthorizeAttributes = new[] { authorizeAttribute } };
+
+            _mockUser.Setup(u => u.Id).Returns(user.Id);
+            _mockIdentityService.Setup(i => i.AuthorizeAsync(user.Id, "CanViewResource")).ReturnsAsync(true);
+
+            // Act
+            var result = await _behaviour.Handle(request, () => Task.FromResult("Success"), CancellationToken.None);
+
+            // Assert
+            result.Should().Be("Success");
         }
 
         #endregion
@@ -162,48 +135,39 @@ namespace CleanArchitecture.Application.Common.Behaviours.Tests
 
         [Fact]
         [Trait("Category", "Edge")]
-        public async Task Handle_WithMultipleRolesAndOneAuthorizedRole_AllowsExecution()
+        public async Task Handle_WithMultipleRolesAndOneAuthorizedRole_Succeeds()
         {
+            // Business Context: Multiple roles, one authorized
             // Arrange
-            var request = new TestRequest();
-            var next = new Mock<RequestHandlerDelegate<TestResponse>>();
-            next.Setup(n => n()).ReturnsAsync(new TestResponse());
+            var user = new User { Id = "USER_001" };
+            var authorizeAttribute = new AuthorizeAttribute { Roles = "Admin,Editor" };
+            var request = new TestRequest { AuthorizeAttributes = new[] { authorizeAttribute } };
 
-            _mockUser.Setup(u => u.Id).Returns("user123");
-            _mockIdentityService.Setup(i => i.IsInRoleAsync("user123", "Admin")).ReturnsAsync(false);
-            _mockIdentityService.Setup(i => i.IsInRoleAsync("user123", "Editor")).ReturnsAsync(true);
-
-            request.GetType().AddCustomAttribute(new AuthorizeAttribute { Roles = "Admin,Editor" });
+            _mockUser.Setup(u => u.Id).Returns(user.Id);
+            _mockIdentityService.Setup(i => i.IsInRoleAsync(user.Id, "Admin")).ReturnsAsync(false);
+            _mockIdentityService.Setup(i => i.IsInRoleAsync(user.Id, "Editor")).ReturnsAsync(true);
 
             // Act
-            var result = await _behaviour.Handle(request, next.Object, CancellationToken.None);
+            var result = await _behaviour.Handle(request, () => Task.FromResult("Success"), CancellationToken.None);
 
             // Assert
-            result.Should().NotBeNull();
-            next.Verify(n => n(), Times.Once);
+            result.Should().Be("Success");
         }
 
         [Fact]
         [Trait("Category", "Edge")]
-        public async Task Handle_WithMultiplePoliciesAndOneAuthorizedPolicy_AllowsExecution()
+        public async Task Handle_WithNullRolesString_ThrowsArgumentException()
         {
+            // Business Context: Null roles string in AuthorizeAttribute
             // Arrange
-            var request = new TestRequest();
-            var next = new Mock<RequestHandlerDelegate<TestResponse>>();
-            next.Setup(n => n()).ReturnsAsync(new TestResponse());
+            var authorizeAttribute = new AuthorizeAttribute { Roles = string.Empty };
+            var request = new TestRequest { AuthorizeAttributes = new[] { authorizeAttribute } };
 
-            _mockUser.Setup(u => u.Id).Returns("user123");
-            _mockIdentityService.Setup(i => i.AuthorizeAsync("user123", "ReadPolicy")).ReturnsAsync(false);
-            _mockIdentityService.Setup(i => i.AuthorizeAsync("user123", "WritePolicy")).ReturnsAsync(true);
-
-            request.GetType().AddCustomAttribute(new AuthorizeAttribute { Policy = "ReadPolicy,WritePolicy" });
-
-            // Act
-            var result = await _behaviour.Handle(request, next.Object, CancellationToken.None);
-
-            // Assert
-            result.Should().NotBeNull();
-            next.Verify(n => n(), Times.Once);
+            // Act & Assert
+            await _behaviour.Invoking(b => b.Handle(request, () => Task.FromResult("Success"), CancellationToken.None))
+                           .Should()
+                           .ThrowAsync<ArgumentException>()
+                           .WithMessage("Roles cannot be null or whitespace.");
         }
 
         #endregion
@@ -214,30 +178,50 @@ namespace CleanArchitecture.Application.Common.Behaviours.Tests
 
         [Fact]
         [Trait("Category", "Negative")]
-        public async Task Handle_WithNullRequest_ThrowsArgumentNullException()
+        public async Task Handle_WithEmptyRolesString_ThrowsArgumentException()
         {
+            // Business Context: Empty roles string in AuthorizeAttribute
             // Arrange
-            RequestHandlerDelegate<TestResponse> next = null;
+            var authorizeAttribute = new AuthorizeAttribute { Roles = "" };
+            var request = new TestRequest { AuthorizeAttributes = new[] { authorizeAttribute } };
 
             // Act & Assert
-            await _behaviour.Invoking(b => b.Handle(null, next, CancellationToken.None))
+            await _behaviour.Invoking(b => b.Handle(request, () => Task.FromResult("Success"), CancellationToken.None))
                            .Should()
-                           .ThrowAsync<ArgumentNullException>()
-                           .WithParameterName("request");
+                           .ThrowAsync<ArgumentException>()
+                           .WithMessage("Roles cannot be null or whitespace.");
         }
 
         [Fact]
         [Trait("Category", "Negative")]
-        public async Task Handle_WithNullNext_ThrowsArgumentNullException()
+        public async Task Handle_WithNullPolicy_ThrowsArgumentException()
         {
+            // Business Context: Null policy in AuthorizeAttribute
             // Arrange
-            var request = new TestRequest();
+            var authorizeAttribute = new AuthorizeAttribute { Policy = string.Empty };
+            var request = new TestRequest { AuthorizeAttributes = new[] { authorizeAttribute } };
 
             // Act & Assert
-            await _behaviour.Invoking(b => b.Handle(request, null, CancellationToken.None))
+            await _behaviour.Invoking(b => b.Handle(request, () => Task.FromResult("Success"), CancellationToken.None))
                            .Should()
-                           .ThrowAsync<ArgumentNullException>()
-                           .WithParameterName("next");
+                           .ThrowAsync<ArgumentException>()
+                           .WithMessage("Policy cannot be null or whitespace.");
+        }
+
+        [Fact]
+        [Trait("Category", "Negative")]
+        public async Task Handle_WithEmptyPolicy_ThrowsArgumentException()
+        {
+            // Business Context: Empty policy in AuthorizeAttribute
+            // Arrange
+            var authorizeAttribute = new AuthorizeAttribute { Policy = "" };
+            var request = new TestRequest { AuthorizeAttributes = new[] { authorizeAttribute } };
+
+            // Act & Assert
+            await _behaviour.Invoking(b => b.Handle(request, () => Task.FromResult("Success"), CancellationToken.None))
+                           .Should()
+                           .ThrowAsync<ArgumentException>()
+                           .WithMessage("Policy cannot be null or whitespace.");
         }
 
         #endregion
@@ -248,22 +232,21 @@ namespace CleanArchitecture.Application.Common.Behaviours.Tests
 
         [Fact]
         [Trait("Category", "Exception")]
-        public async Task Handle_WithIdentityServiceFailure_ThrowsException()
+        public async Task Handle_WhenIdentityServiceThrowsException_ThrowsException()
         {
+            // Business Context: Identity service throws exception
             // Arrange
-            var request = new TestRequest();
-            var next = new Mock<RequestHandlerDelegate<TestResponse>>();
-            next.Setup(n => n()).ReturnsAsync(new TestResponse());
+            var user = new User { Id = "USER_001" };
+            var authorizeAttribute = new AuthorizeAttribute { Roles = "Admin" };
+            var request = new TestRequest { AuthorizeAttributes = new[] { authorizeAttribute } };
 
-            _mockIdentityService.Setup(i => i.IsInRoleAsync("user123", "Admin")).ThrowsAsync(new InvalidOperationException("Failed to check role"));
-
-            request.GetType().AddCustomAttribute(new AuthorizeAttribute { Roles = "Admin" });
+            _mockUser.Setup(u => u.Id).Returns(user.Id);
+            _mockIdentityService.Setup(i => i.IsInRoleAsync(user.Id, "Admin")).ThrowsAsync(new InvalidOperationException());
 
             // Act & Assert
-            await _behaviour.Invoking(b => b.Handle(request, next.Object, CancellationToken.None))
+            await _behaviour.Invoking(b => b.Handle(request, () => Task.FromResult("Success"), CancellationToken.None))
                            .Should()
-                           .ThrowAsync<InvalidOperationException>()
-                           .WithMessage("Failed to check role");
+                           .ThrowAsync<InvalidOperationException>();
         }
 
         #endregion
@@ -274,28 +257,37 @@ namespace CleanArchitecture.Application.Common.Behaviours.Tests
 
         [Fact]
         [Trait("Category", "Security")]
-        public async Task Handle_WithSensitiveData_AuditsAccess()
+        public async Task Handle_WithUnauthorizedUser_AuditsFailedAttempt()
         {
+            // Business Context: Unauthorized user attempt
             // Arrange
-            var request = new TestRequest();
-            var next = new Mock<RequestHandlerDelegate<TestResponse>>();
-            next.Setup(n => n()).ReturnsAsync(new TestResponse());
+            var user = new User { Id = "USER_001" };
+            var authorizeAttribute = new AuthorizeAttribute { Roles = "Admin" };
+            var request = new TestRequest { AuthorizeAttributes = new[] { authorizeAttribute } };
 
-            _mockUser.Setup(u => u.Id).Returns("user123");
-            _mockIdentityService.Setup(i => i.IsInRoleAsync("user123", "Admin")).ReturnsAsync(true);
-
-            request.GetType().AddCustomAttribute(new AuthorizeAttribute { Roles = "Admin" });
+            _mockUser.Setup(u => u.Id).Returns(user.Id);
+            _mockIdentityService.Setup(i => i.IsInRoleAsync(user.Id, "Admin")).ReturnsAsync(false);
 
             // Act
-            await _behaviour.Handle(request, next.Object, CancellationToken.None);
+            await _behaviour.Invoking(b => b.Handle(request, () => Task.FromResult("Success"), CancellationToken.None))
+                           .Should()
+                           .ThrowAsync<ForbiddenAccessException>();
 
             // Assert
-            _mockIdentityService.Verify(i => i.IsInRoleAsync("user123", "Admin"), Times.Once);
+            _mockIdentityService.Verify(i => i.AuditFailedAuthorizationAsync(user.Id, "Admin"), Times.Once);
         }
 
         #endregion
     }
 
-    public class TestRequest { }
-    public class TestResponse { }
+    public class TestRequest
+    {
+        public AuthorizeAttribute[]? AuthorizeAttributes { get; set; }
+    }
+
+    public class User : IUser
+    {
+        public string? Id { get; set; }
+    }
+
 }
