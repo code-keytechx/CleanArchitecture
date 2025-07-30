@@ -26,7 +26,7 @@ public class CreateTodoItemCommandHandler : IRequestHandler<CreateTodoItemComman
         {
             ListId = request.ListId,
             Title = request.Title,
-            Done = true
+            Done = false
         };
 
         entity.AddDomainEvent(new TodoItemCreatedEvent(entity));
