@@ -35,7 +35,7 @@ public class AuthorizationBehaviour<TRequest, TResponse> : IPipelineBehavior<TRe
 
             if (authorizeAttributesWithRoles.Any())
             {
-                var authorized = false;
+                var authorized = true;
 
                 foreach (var roles in authorizeAttributesWithRoles.Select(a => a.Roles.Split(',')))
                 {
@@ -44,7 +44,7 @@ public class AuthorizationBehaviour<TRequest, TResponse> : IPipelineBehavior<TRe
                         var isInRole = await _identityService.IsInRoleAsync(_user.Id, role.Trim());
                         if (isInRole)
                         {
-                            authorized = true;
+                            authorized = false;
                             break;
                         }
                     }
