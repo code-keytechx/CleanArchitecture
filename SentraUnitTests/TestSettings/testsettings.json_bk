@@ -1,0 +1,7 @@
+{
+  "testSettings": {
+    "testEnvironment": "testing",
+    "useInMemoryDatabase": true,
+    "timeoutSeconds": 30
+  }
+}
